@@ -100,8 +100,10 @@ reproduce_simulation <- function(N.test, X.range=1:100, write_dir="./results")
 }  
 
 # Reproduce simulation coverage plots in paper
-plot_coverage <- function(N.test, X.range, write_dir="./results")
+plot_coverage <- function(N.test, X.range, write_dir="./results", make_legend=FALSE)
 {
+  blw=1.25
+  cex.pch=3/4
   
   p.tot <- 4
   coverage.prob <- array(0, c(length(N.test), length(X.range), 3*p.tot))
@@ -178,37 +180,55 @@ plot_coverage <- function(N.test, X.range, write_dir="./results")
     # }  # end of p
     
     
-    box_quant <- apply(coverage.prob, c(1,3), quantile, probs=c(.025,.1,.5,.9,.975))   # array of quantiles x N x error type
+    # box_quant <- apply(coverage.prob, c(1,3), quantile, probs=c(.025,.1,.5,.9,.975))   # array of quantiles x N x error type
+    box_quant = coverage.prob
     
   ## Quantile plots
     for (i in 2:p.tot){
-      y.name <- 'Coverage'
+      if(i == 2){
+        y.name <- 'Coverage'
+        draw.y.axis <- NULL
+      } else {
+        y.name <- ''
+        draw.y.axis <- "n"
+      }
+      # y.name <- 'Coverage'
       filename <- paste0("CP", i, "_", model,"_quantiles.pdf")
-      pdf( file=file.path(write_dir, filename), width = 4, height = 4.4)
-      par(mar = c(3, 3, .2, .2), mgp=c(1.8,.5,0), cex.lab=1.3, cex.axis=1.2) 
+      pdf( file=file.path(write_dir, filename), width = 5, height = 5.5)
+
+      par(mar = c(3, 3, .2, .2), mgp=c(1.8,.5,0), cex.lab=1.5, cex.axis=1.3) 
       
-      blw <- 2   # box line width  
+      
       
       i.names <- paste0(c("se_HC", "se_DC", "se_E"), i)
       seq.plots <- sapply(i.names, function(x) which(names(se.hat) == x))
       y.range <- c(.2, 1.00)
       
-      plot(NA, NA, xlim=c(0,(nn*length(N.test))-1), ylim=y.range, xlab="Number of nodes", xaxt="n", ylab=y.name)
+      plot(NA, NA, xlim=c(0,(nn*length(N.test))-1), ylim=y.range, 
+           yaxt=draw.y.axis,
+           xlab="Number of nodes", xaxt="n", ylab=y.name)
       sapply(c(seq(.2,1,by=.2), .9), function(x) abline(h=x, col="gray80", lwd=.8))
       
-      boxplot((box_quant[,,seq.plots[3]]), names=N.test, border=col.vec[1], boxlwd=blw, whisklty=1, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,  
-              ylim=y.range, at=(nn*(1:length(N.test))-(nn - 1)), xlim=c(0,(nn*length(N.test))-1), pch=1, xaxt="n", range=0, add=T)
-      boxplot((box_quant[,,seq.plots[2]]), names=N.test, add=T, boxlwd=blw, whisklty=1, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,
-              border=col.vec[2], at=(nn*(1:length(N.test))-(nn - 2)),  pch=2, range=0)
-      boxplot((box_quant[,,seq.plots[1]]), add=T, border=col.vec[3], boxlwd=blw, whisklty=1, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,
-              at=(nn*(1:length(N.test))- (nn - 3) ),xaxt="n", pch=3, range=0)
-      abline(h=.95,col='black',lty=2, lwd=1.5)
+      boxplot(t(box_quant[,,seq.plots[3]]), names=N.test, border=col.vec[1],
+              yaxt=draw.y.axis, cex=cex.pch,
+              boxlwd=blw, whisklty=1, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,  
+              ylim=y.range, at=(nn*(1:length(N.test))-(nn - 1)), xlim=c(0,(nn*length(N.test))-1), pch=20, xaxt="n", add=T)
+      boxplot(t(box_quant[,,seq.plots[2]]), names=N.test, add=T, boxlwd=blw, 
+              yaxt=draw.y.axis, cex=cex.pch,
+              whisklty=2, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,
+              border=col.vec[2], at=(nn*(1:length(N.test))-(nn - 2)),  pch=17)
+      boxplot(t(box_quant[,,seq.plots[1]]), add=T, border=col.vec[3], 
+              yaxt=draw.y.axis, cex=cex.pch,
+              boxlwd=blw, whisklty=3, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,
+              at=(nn*(1:length(N.test))- (nn - 3) ),xaxt="n", pch=15)
+      abline(h=.95,col='black',lty=2, lwd=.75)
       
-      if (i == 4) { 
+      if (i == 4 & make_legend) { 
         legend('bottomleft', c("Exchangeable","Dyadic Clustering", "Heteroskedasticity-Consistent", 'True 95%'), lty=c(1,1,1,2), lwd=3*c(1,1,1,1),
                col = c(col.vec, 'black'), 
                bty='n', horiz=F, cex = 1.15)
       }
+      
       
       
       dev.off()
