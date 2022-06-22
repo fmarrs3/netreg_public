@@ -1,4 +1,4 @@
-# Tyler H. McCormick, Bailey K. Fosdick, and Frank W. Marrs
+# Frank W. Marrs, Bailey K. Fosdick, and Tyler H. McCormick
 # 
 # functions in support of reproduce_simulations.R and reproduce_trade_example.R
 #
@@ -20,9 +20,9 @@ reproduce_simulation <- function(N.test, X.range=1:100, write_dir="./results")
   # X.test is the number of X matrices to test per simulation
   # All outputs are written out to data files
   #
+  dir.create(write_dir, showWarnings = FALSE)
   
-  
-  Model.test <- c('iid', 'ble', 'rand')          # iid, sr, ble, rand, data generation type
+  Model.test <- c('ble', 'rand')          # iid, sr, ble, rand, data generation type
   f.e <- .25    # proportion of total variance of iid/measurement error
   s.e.max <- sqrt(3)                 # KNOB FOR S/N RATIO:  iid standard deviation (maximum, when f.e = 1)
   Rep.test <- 1000            # Number of replications to run
@@ -100,14 +100,17 @@ reproduce_simulation <- function(N.test, X.range=1:100, write_dir="./results")
 }  
 
 # Reproduce simulation coverage plots in paper
-plot_coverage <- function(N.test, X.range, write_dir="./results", make_legend=FALSE)
+plot_coverage <- function(N.test, X.range, write_dir="./results")
 {
+  dir.create(write_dir, showWarnings = FALSE)
+  plot_dir <- write_dir
+  
   blw=1.25
   cex.pch=3/4
   
   p.tot <- 4
-  coverage.prob <- array(0, c(length(N.test), length(X.range), 3*p.tot))
-  Model.test <- c('iid', 'ble', 'rand')          # iid, sr, ble, rand, data generation type
+  coverage.prob <- array(0, c(length(N.test), length(X.range), 2*p.tot))
+  Model.test <- c('ble', 'rand')          # iid, sr, ble, rand, data generation type
 
   for (m.loop in 1:length(Model.test)) {
     model <- Model.test[m.loop]  
@@ -125,11 +128,15 @@ plot_coverage <- function(N.test, X.range, write_dir="./results", make_legend=FA
         
         filename <- file.path(write_dir, paste0(model, "_n", n.tot, "_x", x.loop, "_se.txt"))
         se.hat <- read.table(file=filename, header=T)
+        j.remove <- grep("HC", names(se.hat))
+        if(length(j.remove) > 0){
+          se.hat <- se.hat[,-j.remove]
+        }
 
         
         # Post process empirical variances and MSEs
         for (i in 1:p.tot) {
-          i.names <- paste0(c("se_HC", "se_DC", "se_E"), i)
+          i.names <- paste0(c("se_DC", "se_E"), i)
           i.indices <- sapply(i.names, function(x) which(names(se.hat) == x))
           UB.beta <- beta.hat[,i] + 1.96*se.hat[, i.names]
           LB.beta <- beta.hat[,i] - 1.96*se.hat[, i.names]
@@ -140,49 +147,40 @@ plot_coverage <- function(N.test, X.range, write_dir="./results", make_legend=FA
       
       # Write out coverage probability
       table.out <- data.frame(coverage.prob[n.loop,,]) 
-      names(table.out) <- c(sapply(c("cp_HC", "cp_DC", "cp_E"), paste0, 1:4))
-      write.table(coverage.prob, file.path(write_dir, paste0("coverage_", model, "_n", n.tot, ".txt")), row.names=F, sep='\t')
+      names(table.out) <- c(sapply(c("cp_DC", "cp_E"), paste0, 1:4))
+      write.table(table.out, file.path(write_dir, paste0("coverage_", model, "_n", n.tot, ".txt")), 
+                  row.names=F, sep='\t')
   
     }  # end of N
+  }  # end of model
     
+    y.range <- c(.2,1)
     
     legend.loc <- rep("topright",6);  #legend.loc[c(1:3,6)]  <- 'bottomright'
     col.vec <- c('#d7191c', '#8da0cb', '#fdae61')
     nn <- 5
+    gap2 <- 3
+    
   
-    # for (i in 1:p.tot){
-    #   y.name <- 'Coverage'
-    #   filename <- paste0("CP", i, "_", model,".pdf")
-    #   pdf( file=file.path(write_dir, filename), width = 4, height = 4.4)
-    #   par(mar = c(3, 3, .2, .2), mgp=c(1.8,.5,0), cex.lab=1.3, cex.axis=1.2) 
-    #   
-    #   blw <- 2   # box line width  
-    #   
-    #   i.names <- paste0(c("se_HC", "se_DC", "se_E"), i)
-    #   seq.plots <- sapply(i.names, function(x) which(names(se.hat) == x))
-    #   y.range <- c(.2, 1.00)
-    #   
-    #   boxplot(t(coverage.prob[,,seq.plots[3]]), ylab=y.name, xlab="Number of nodes", names=N.test, border=col.vec[1], boxlwd=blw, whisklty=1, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,  
-    #           ylim=y.range, at=(nn*(1:length(N.test))-(nn - 1)), xlim=c(0,(nn*length(N.test))-1), pch=1, xaxt="n" )
-    #   boxplot(t(coverage.prob[,,seq.plots[2]]), names=N.test, add=T, boxlwd=blw, whisklty=1, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,
-    #           border=col.vec[2], at=(nn*(1:length(N.test))-(nn - 2)),  pch=2)
-    #   boxplot(t(coverage.prob[,,seq.plots[1]]), add=T, border=col.vec[3], boxlwd=blw, whisklty=1, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,
-    #           at=(nn*(1:length(N.test))- (nn - 3) ),xaxt="n", pch=3)
-    #   abline(h=.95,col='black',lty=2, lwd=1.5)
-    #   
-    #   if (i == 4) { 
-    #     legend('bottomleft', c("Exchangeable","Dyadic Clustering", "Heteroskedasticity-Consistent", 'True 95%'), lty=c(1,1,1,2), lwd=3*c(1,1,1,1),
-    #            col = c(col.vec, 'black'), 
-    #            bty='n', horiz=F, cex = 1.15)
-    #   }
-    #   
-    #   dev.off()
-    # }  # end of p
+    aa = 2*length(Model.test)
+    x.max <- aa*length(N.test) + gap2*length(N.test) - gap2
+    ests <- c("cp_E", "cp_DC")
+    n.est <- length(ests)
+    coverage.array <- array(0, c(length(X.range), length(ests)*length(N.test)*length(Model.test), p.tot))
+    for (n.loop in 1:length(N.test)) {
+      n.tot <- N.test[n.loop]     # number of members
+      for(kk in 1:p.tot){
+        temp <- NULL
+        for(m.loop in 1:length(Model.test)){
+          cp <- read.table(file.path(write_dir, paste0("coverage_", model, "_n", n.tot, ".txt")), 
+                           sep='\t', header=TRUE)
+          temp <- cbind(temp, as.matrix(cp[, paste0(ests, kk)]))
+        }
+        coverage.array[,1:aa + aa*(n.loop-1), kk] <- temp
+      }
+    }
     
-    
-    # box_quant <- apply(coverage.prob, c(1,3), quantile, probs=c(.025,.1,.5,.9,.975))   # array of quantiles x N x error type
-    box_quant = coverage.prob
-    
+  
   ## Quantile plots
     for (i in 2:p.tot){
       if(i == 2){
@@ -192,119 +190,84 @@ plot_coverage <- function(N.test, X.range, write_dir="./results", make_legend=FA
         y.name <- ''
         draw.y.axis <- "n"
       }
-      # y.name <- 'Coverage'
-      filename <- paste0("CP", i, "_", model,"_quantiles.pdf")
-      pdf( file=file.path(write_dir, filename), width = 5, height = 5.5)
-
-      par(mar = c(3, 3, .2, .2), mgp=c(1.8,.5,0), cex.lab=1.5, cex.axis=1.3) 
       
-      
-      
-      i.names <- paste0(c("se_HC", "se_DC", "se_E"), i)
-      seq.plots <- sapply(i.names, function(x) which(names(se.hat) == x))
-      y.range <- c(.2, 1.00)
-      
-      plot(NA, NA, xlim=c(0,(nn*length(N.test))-1), ylim=y.range, 
-           yaxt=draw.y.axis,
-           xlab="Number of nodes", xaxt="n", ylab=y.name)
-      sapply(c(seq(.2,1,by=.2), .9), function(x) abline(h=x, col="gray80", lwd=.8))
-      
-      boxplot(t(box_quant[,,seq.plots[3]]), names=N.test, border=col.vec[1],
-              yaxt=draw.y.axis, cex=cex.pch,
-              boxlwd=blw, whisklty=1, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,  
-              ylim=y.range, at=(nn*(1:length(N.test))-(nn - 1)), xlim=c(0,(nn*length(N.test))-1), pch=20, xaxt="n", add=T)
-      boxplot(t(box_quant[,,seq.plots[2]]), names=N.test, add=T, boxlwd=blw, 
-              yaxt=draw.y.axis, cex=cex.pch,
-              whisklty=2, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,
-              border=col.vec[2], at=(nn*(1:length(N.test))-(nn - 2)),  pch=17)
-      boxplot(t(box_quant[,,seq.plots[1]]), add=T, border=col.vec[3], 
-              yaxt=draw.y.axis, cex=cex.pch,
-              boxlwd=blw, whisklty=3, whisklwd=blw, staplelty=1, staplelwd=blw, outlwd=blw,
-              at=(nn*(1:length(N.test))- (nn - 3) ),xaxt="n", pch=15)
-      abline(h=.95,col='black',lty=2, lwd=.75)
-      
-      if (i == 4 & make_legend) { 
-        legend('bottomleft', c("Exchangeable","Dyadic Clustering", "Heteroskedasticity-Consistent", 'True 95%'), lty=c(1,1,1,2), lwd=3*c(1,1,1,1),
-               col = c(col.vec, 'black'), 
-               bty='n', horiz=F, cex = 1.15)
+      # build box.temp
+      # box.temp <- coverage.prob[ c(sapply(c("cp_DC", "cp_E"), paste0, 1:4))
+      box.temp <- coverage.array[,,i]
+      means <- apply(box.temp, 2, mean)
+      lb <- apply(box.temp, 2, quantile, .025, na.rm=TRUE)
+      ub <- apply(box.temp, 2, quantile, .975, na.rm=TRUE)
+      x.plot <- 1:length(means)
+      delta <- 0
+      for(n.loop in 1:length(N.test)){
+        x.plot[1:aa + aa*(n.loop-1)] <- x.plot[1:aa + aa*(n.loop-1)] + delta
+        delta <- delta + gap2
       }
       
+      # gap1 <- 1
+      # gap2 <- 3
+      # delta1 <- rep(seq(0, 9*gap1, by=gap1), each=2)
+      # delta2 <- rep(seq(0, 4*gap2, by=gap2), each=4)
+      # x.plot <- x.plot + (delta1 + delta2)[1:length(x.plot)]
       
       
+      blw=2
+      pt.lw=1.75
+      cex.pch=1.0
+      
+      col.vec <- c('#d7191c', '#8da0cb', "gray")
+      gray.ps <- "color"
+      cols <- c(col.vec[1:2], NA)
+      
+      filename <- paste0("cp_covariate", i, "_allmodels_", gray.ps, ".png")
+      png( file=file.path(plot_dir, filename), width = 5, height = 5.5, res=200, units = "in")
+      par(mar = c(3, 1.75, .2, .2), mgp=c(1.7,.5,0), cex.lab=1.5, cex.axis=1.5)
+      
+      plot(NA, NA,
+           xlim=range(x.plot),
+           ylim=y.range,
+           yaxt=draw.y.axis,
+           xlab="Number of actors", xaxt="n", ylab=y.name)
+      abline(h=c(seq(.2,1,by=.2), .9), col="gray80", lwd=.8)
+      abline(h=.95,col='gray25',lty=2, lwd=1.25)
+      axis(1, seq(aa/2+1/2, max(x.plot), by=aa+gap2), labels=N.test)
+      
+      points(x.plot, means, pch=rep(1:2, each=2), col=cols[1:2],
+             cex=cex.pch, lwd=pt.lw)
+      ltys <- rep(rep(1:2, each=3), times=5)
+      cols.lin <- rep(cols[1:2], times=15)
+      for(i in 1:length(lb)){
+        lines(c(x.plot[i],x.plot[i]), c(lb[i],ub[i]), lwd=blw, col=cols.lin[i]) #, lty=ltys[i])
+      }
+      
+      if(i==4){
+        legend("bottomright", c("Exchangeable", "Dyadic clustering"),
+               lwd=blw, col=cols, pch=1:2, bty="n", cex=1.4)
+      }
+      # abline(v=c(x.plot[seq(4, 19, by=4)] + gap2-1/2), col="gray80")
       dev.off()
+      
     }  # end of p
-    
-    
-    } # end of model
   }
 
 # Reproduce trade example in paper
-reproduce_trade <- function(tmax, mattype, write_dir="./results", beta_start="")
+reproduce_trade <- function(tmax, write_dir="./results", mattype="EE",  
+                            beta_start="", verbose=FALSE)
 {
+  dir.create(write_dir, showWarnings = FALSE)   # create output directory 
   
-  data <- read_trade_data(tmax)
+  data <- read_trade_data(tmax, getwd())
   
-  output <- GEE.est(data$Y, data$X, n.tot=max(data$node.mat), t.max=max(data$t.vec), type=mattype, write_dir=write_dir, beta_start=beta_start, node.mat=data$node.mat)
+  output <- GEE.est(data$Y, data$X, n.tot=max(data$node.mat), 
+                    t.max=max(data$t.vec), type=mattype, write_dir=write_dir, 
+                    beta_start=beta_start, node.mat=data$node.mat, verbose=verbose)
   
   # GEE.est <- function(Y.in, X.in, n.tot, t.max, tol.in=1e-6, directed=T, type="EE", write_dir=getwd(), beta_start="", node.mat=NA) 
-    
+  write.table(output$beta,
+              row.names = FALSE, col.names = FALSE,
+              file=file.path(write_dir, paste0("beta_gee_t", tmax,".txt"))
+              )  
 }
-
-# # Reproduce plots as in paper
-# plot_beta_hoff_comparison <- function(tmax, write_dir='./results', loop="max")
-# {
-#   # wd <- getwd()
-#   # 
-#   # setwd(wd)
-#   # write_dir <- "./results"
-#   
-#   tmp.hoff <- as.matrix(read.table(file.path(getwd(), 'beta_hoff.txt'), header=F))
-#   beta.hoff <- t(matrix(tmp.hoff, 20, 8))
-#   
-#   tmp.ols <- as.matrix(read.table(file.path(write_dir, 'beta_ols.txt'), header=F))
-#   beta.ols <- t(matrix(tmp.ols, tmax, 8))
-#   
-#   files <- list.files(write_dir, pattern= paste0("(beta_)+.*(", "t", tmax, ".txt)+"))  # find last simulation file
-#   if(loop == "max"){
-#     tmp.EE <- as.matrix(read.table(file.path(write_dir, files[length(files)]), header=F))
-#   } else {
-#     tmp.EE <- as.matrix(read.table(file.path(write_dir, files[grep(paste0("loop", loop, "_"), files)]), header=F))
-#   }
-#   beta.EE <- t(matrix(tmp.EE, tmax, 8))
-#   
-#   
-#   
-#   # Plots
-#   #with lines
-#   names <- c('intercept', 'log gdp of exporter', 'log gdp of importer', 'log distance',
-#              'policy of exporter', 'policy of importer', 
-#              'cooperation in conflict', 'policy interaction')
-#   for(i in 1:8){
-#     pdf(file=file.path(write_dir, paste0("beta_comparison_t", tmax, "_", i,'.pdf')), width=4, height=4)
-#     par(mar = c(3, 3, 3, .7), mgp=c(2,.5,0), cex.lab=1.3, cex.axis=1.2)  
-#     y.range <- range( c( beta.EE[i,], beta.ols[i,], beta.hoff[i,]) )
-#     plot(1:tmax, beta.hoff[i, 1:tmax], xlab='', ylab='Estimated coefficient', main=names[i], pch=19, ylim=y.range,type='l',xlim=c(.7, tmax + .2),xaxt="n")
-#     if(tmax == 20){
-#       axis(side=1,at=c(0,5,10,15,20),labels=c("1980","1985","1990","1995","2000"),las=2)
-#     } else {
-#       axis(side=1,at=seq(0, tmax, by=5),labels=c("1980","1985","1990","1995","2000")[1:(1+floor(tmax/5))]  ,las=2)
-#     }
-#     for(ttt in 1:tmax){abline(v=ttt,lty=3,lwd=.8,col='gray')}
-#     points(1:tmax, beta.ols[i, 1:tmax], pch=17, col="green", lwd=1.5,type='l',lty=1)
-#     points(1:tmax, beta.ols[i, 1:tmax], pch=17, col="green", lwd=2,type='p',cex=1.3)
-#     #points(1:20, beta.gee.homo[i,], pch=2, col="red", lwd=2,type='l')
-#     #points(1:20, beta.gee.hetero[i,], pch=4, col="purple", lwd=2,type='l')
-#     points(1:tmax, beta.EE[i, 1:tmax], pch=18, col="orange", lwd=1.5,type='l',lty=1)
-#     points(1:tmax, beta.EE[i, 1:tmax], pch=18, col="orange", lwd=2,type='p',cex=1.3)
-#     points(1:tmax, beta.hoff[i, 1:tmax], pch=19,lwd=1.5,type='l',lty=1)
-#     points(1:tmax, beta.hoff[i, 1:tmax], pch=19,lwd=2,type='p')
-#     #if(i==8){legend('topleft', legend=c('Hoff', 'OLS', 'GEE Homo E/I', 'GEE Hetero E/I', 'GEE Homo E/E'), cex=.9,
-#     #pch=c(19, 0, 2, 4, 6), col=c("black", "green", "red", "purple", "orange"), bty='n')}
-#     if(i==8){legend('topleft', legend=c('GEE Homoskedastic E/E', 'Westveld & Hoff 2011','OLS'), cex=1.2,
-#                     pch=c(18, 19, 17), col=c("orange", "black", "green"), lty=c(1,1,1),bty='n')}
-#     dev.off()
-#   }
-# }
 
 # Function to reproduce coefficient plots from trade example in paper
 plot_beta_hoff_comparison <- function(tmax, write_dir='./results_t20_test_160904_EE')
@@ -380,6 +343,190 @@ plot_beta_hoff_comparison <- function(tmax, write_dir='./results_t20_test_160904
     
     dev.off()
   }
+}
+
+# Function to predict R^2 values and reproduce plot in paper
+plot_r2_predictions <- function(tmax, wd=getwd())
+{
+  setwd(wd)
+  datadir=wd
+  if(tmax <= 4){
+    stop("need tmax > 4")
+  }
+  ts <- 4:tmax
+  
+  r2s <- matrix(NA, length(ts), 3)
+  for(i in 1:length(ts)){
+    data <- read_trade_data(ts[i]+1, datadir)
+    readdir <- paste0("./results_trade_gee_t", ts[i])    # name/location to write results
+    r1 <- predict_ols(ts[i], readdir, data)
+    r2 <- predict_gee(ts[i], readdir, data)
+    readdir <- paste0("./results_trade_bayes_t", ts[i])    # name/location to write results
+    r3 <- predict_bayesian(ts[i], readdir, data)
+    
+    r2s[i, ] <- c(r1$R2out, r2$R2out, r3$R2out)
+  }
+  colnames(r2s) <- c("OLS", "GEE", "MCMC")
+  rownames(r2s) <- paste0("t", ts)
+  
+  writedir <- paste0("./results_trade")    # name/location to write results
+  dir.create(writedir)
+  write.table(r2s, file.path(writedir, paste0("R2_t", tmax, ".txt")))
+  
+  
+  colors <- c('#d7191c', '#8da0cb', '#fdae61', "gray")
+  plot.dir <- writedir  #"./prediction_figure"
+  dir.create(plot.dir, showWarnings = FALSE)
+  x=ts+1
+  
+  png(file=file.path(plot.dir, paste0("r2_color_withlegend.png")), width=7, height=4, units="in", res=200)
+  par(mar=c(3,3,1,1), cex.axis=1.2, cex.lab=1.2, mgp=c(1.7,.55,0)) #, mfrow=c(4,1))
+  # colors <- RColorBrewer::brewer.pal(8, "Set2")
+  plot(NA, NA, col=colors[1], lwd=2, type="o",
+       xlim=range(x), ylim=c(0, 1), xlab="Prediction year", ylab=expression(R^2))
+  lines(x, r2s[,"GEE"], type="o", col=colors[1], lwd=2, pch=1, lty=1)
+  lines(x, r2s[,"MCMC"], type="o", col=colors[2], lwd=2, pch=2, lty=2)
+  lines(x, r2s[,"OLS"], type="o", col=colors[3], lwd=2, pch=3, lty=3)
+  legend("bottomright", 
+         c("Exchangeable", "Mixed effects", "Ordinary least squares"),
+         col=colors, lwd=2,
+         lty=1:3, pch=1:3, bty="n"
+  )
+  dev.off()
+  
+}
+
+# Reproduce testing simulation from appendix
+reproduce_testing_sim <- function(n, nerr=1e3, nsim=1e3, 
+                                  write_dir="./results", verbose=FALSE)
+{
+  write.dir <- write_dir
+  dir.create(write.dir, showWarnings = FALSE)
+  n.list <- node.set(n)
+  
+  make.x <- function(n, vs=NULL)
+  {
+    if(is.null(vs)){
+      vs <- 1
+    }
+    v <- rnorm(n, 0, vs)
+    w <- outer(v, v, "-")
+    x <- vec.net(w, TRUE)
+    
+    return(list(x=x, v=v))
+  }
+  
+  perm.mat <- function(m) # matrix input
+  {
+    n <- nrow(m)
+    ii <- sample(1:n)
+    out <- vec.net(m[ii,ii])
+    return(out)
+  }
+  
+  nerr <- 1e3
+  nsim <- 1e3
+  
+  p.val <- ve <- vx <- matrix(0, nerr, 2)
+  print.interval=50
+  
+  for(j in 1:nerr){
+    set.seed(j)
+    
+    # null
+    res <- make.x(n)
+    X <- cbind(1, res$x/sqrt(2))
+    res2 <- make.x(n)
+    eps <- res2$x/2 + rnorm(length(res2$x))/sqrt(2)
+    y <- rowSums(X) + eps
+    beta.hat <- solve(crossprod(X), crossprod(X,y))
+    e <- y - X %*% beta.hat
+    X.tilde <- t(solve(crossprod(X), t(X)))
+    
+    # Vtrue.0 <- t(X.tilde) %*% Omega.true %*% X.tilde
+    meat.E0 <- meat.S(n.list, X.tilde, e) 
+    meat.DC0 <- meat.U(n.list, X.tilde, e)
+    
+    
+    v.sim <- rep(NA, nsim)
+    e.mat <- mat.net(e)
+    v.mat.sim <- array(NA, c(2,2,nsim))
+    for(i in 1:nsim){
+      e.tilde <- perm.mat(e.mat)
+      meat.DC <- meat.U(n.list, X.tilde, e.tilde)
+      v.sim[i] <- meat.DC$M[2,2]
+      v.mat.sim[,,i] <- meat.DC$M
+    }
+    
+    # p.val[j,1] <- min(c(
+    #   2*mean(meat.DC0$M[2,2] > v.sim),
+    #   2*mean(meat.DC0$M[2,2] < v.sim)
+    # ))
+    mean.DC <- apply(v.mat.sim, 1:2, mean)
+    ds <- sapply(1:nsim, function(z) sum((v.mat.sim[,,z]-mean.DC)^2))
+    dd <- sum((meat.DC0$M - mean.DC)^2)
+    p.val[j,1] <- mean(ds > dd)
+    
+    ve[j,1] <- var(eps)
+    vx[j,1] <- var(X[,2])  
+    
+    
+    # res <- make.x(n, vs=c(1:n)/n)
+    res <- make.x(n, vs=c(1:n)/n*1.7)
+    X <- cbind(1, res$x/sqrt(2))
+    res2 <- make.x(n, vs=abs(res$v))
+    # eps <- res2$x + rnorm(length(res2$x))/sqrt(2)
+    eps <- c(res2$x + rnorm(length(res2$x))/sqrt(2))/1.6
+    y <- rowSums(X) + eps
+    beta.hat <- solve(crossprod(X), crossprod(X,y))
+    e <- y - X %*% beta.hat
+    X.tilde <- t(solve(crossprod(X), t(X)))
+    
+    # Vtrue.0 <- t(X.tilde) %*% Omega.true %*% X.tilde
+    meat.E0 <- meat.S(n.list, X.tilde, e) 
+    meat.DC0 <- meat.U(n.list, X.tilde, e)
+    
+    v.sim <- rep(NA, nsim)
+    e.mat <- mat.net(e)
+    v.mat.sim <- array(NA, c(2,2,nsim))
+    for(i in 1:nsim){
+      e.tilde <- perm.mat(e.mat)
+      meat.DC <- meat.U(n.list, X.tilde, e.tilde)
+      v.sim[i] <- meat.DC$M[2,2]
+      v.mat.sim[,,i] <- meat.DC$M
+    }
+    
+    # p.val[j,2] <- min(c(
+    #   2*mean(meat.DC0$M[2,2] > v.sim),
+    #   2*mean(meat.DC0$M[2,2] < v.sim)
+    # ))
+    ve[j,2] <- var(eps)
+    vx[j,2] <- var(X[,2])
+    mean.DC <- apply(v.mat.sim, 1:2, mean)
+    ds <- sapply(1:nsim, function(z) sum((v.mat.sim[,,z]-mean.DC)^2))
+    dd <- sum((meat.DC0$M - mean.DC)^2)
+    p.val[j,2] <- mean(ds > dd)
+    
+    
+    if(j %% print.interval == 0 & verbose){
+      save(p.val, ve, vx, n,
+           file=file.path(write.dir, "perm_sim_distances.rda"))
+      cat(j, ".")
+      cat("Type I error rate= ", round(mean(p.val[1:j, 1] < .05), 3), "\n")
+      cat("Power= ", round(mean(p.val[1:j, 2] < .05), 3), "\n")
+      cat("\n\n")
+    }
+  }
+  
+  
+  power <- round(mean(p.val[,2] < .05), 4)
+  size <- round(mean(p.val[,1] < .05), 4)
+  
+  sink(file=file.path(write.dir, "power_and_size_ests.txt"))
+  cat("Testing scenario of ", nerr, "random datasets, with ", nsim, "permutations each \n\n")
+  cat("Estimated size = ", size, "\n\n")
+  cat("Estimated power = ", power, "\n\n")
+  sink()
 }
 
 
@@ -461,8 +608,11 @@ fit.data <- function(Y.1, X.1, n.list, type='ols', data='continuous')
 }
 
 # Perform GEE estimate of coefficients as in trade example
-GEE.est <- function(Y.in, X.in, n.tot, t.max, tol.in=1e-6, directed=T, type="EE", write_dir=getwd(), beta_start="", node.mat=1) 
+GEE.est <- function(Y.in, X.in, n.tot, t.max, tol.in=1e-6, 
+                    directed=T, type="EE", write_dir=getwd(), beta_start="", node.mat=1,
+                    verbose=FALSE) 
 {
+  tmax=t.max
   # Calculate GEE estimate of regressors beta for continuous data
   # Return beta, residuals, weight matrix, # iterations, objective function Q, and actual tolerance
   # 
@@ -471,7 +621,7 @@ GEE.est <- function(Y.in, X.in, n.tot, t.max, tol.in=1e-6, directed=T, type="EE"
   t1 <- proc.time()[3]
   
   
-  if(nchar(beta_start)>0){
+  if(nchar(beta_start)>0 & verbose){
     cat("Starting coefficients lcoated here: ", beta_start, "\n")
   }
   
@@ -492,15 +642,21 @@ GEE.est <- function(Y.in, X.in, n.tot, t.max, tol.in=1e-6, directed=T, type="EE"
   se.ols <- sqrt(diag(XX * sum((Y.in - X.in %*% beta.0)^2)/(nrow(X.in) - ncol(X.in))))
   write.table(beta.0, file.path(write_dir, "beta_ols.txt"), row.names=F, col.names=F)
   write.table(se.ols, file.path(write_dir, "beta_olsSE.txt"), row.names=F, col.names=F)
-  cat("OLS fit complete \n")
+  if(verbose){
+    cat("OLS fit complete \n")
+  }
+  
   
   eols <- Y.in - X.in %*% beta.0
-  meat_DC <- meatDC2(node.mat, X.in, eols)
+  meat_DC <- meatDC2(node.mat, X.in, eols, verbose=verbose)
   Vdc <- XX %*% meat_DC %*% XX
   Vdc <- make.positive.var(Vdc)
   se_dc <- sqrt(diag(Vdc$V))
   write.table(se_dc, file.path(write_dir, paste0("se_dc_t", tmax,".txt")), row.names=F, col.names=F)
-  cat("DC SE complete \n")
+  if(verbose){
+    cat("DC SE complete \n")
+  }
+  
   
   # Start looping
   if(nchar(beta_start) == 0){
@@ -619,28 +775,32 @@ GEE.est <- function(Y.in, X.in, n.tot, t.max, tol.in=1e-6, directed=T, type="EE"
     
     write.table(cbind(count.in, as.numeric(Q.new)), file.path(write_dir, "GEE_criterion.txt"), row.names = F, sep="\t", append=T, col.names=F)  # write out criterion
     
-    cat('GEE iteration: \t\t', count.in, '\n')
-    cat('Change in criterion: \t', abs(delta.loop), '\n')
-    cat('Elapsed time: \t\t', proc.time()[3]- t1, 'sec \n')
-    write.table(beta.gls, file=file.path(write_dir, paste('beta_loop',count.in,'_t', tmax, '.txt',sep='')), row.names=F, col.names=F, sep='\t')
-    warnings()
-    cat('************************************ \n')
-    
+    if(verbose){
+      cat('GEE iteration: \t\t', count.in, '\n')
+      cat('Change in criterion: \t', abs(delta.loop), '\n')
+      cat('Elapsed time: \t\t', proc.time()[3]- t1, 'sec \n')
+      cat('************************************ \n')
+      write.table(beta.gls, file=file.path(write_dir, paste('beta_loop',count.in,'_t', tmax, '.txt',sep='')), row.names=F, col.names=F, sep='\t')
+      warnings()
+    }
+    write.table(beta.gls, file=file.path(write_dir, paste('beta_gee_t', tmax, '.txt',sep='')), row.names=F, col.names=F, sep='\t')
+    write.table(params, file=file.path(write_dir, paste('params_gee_t', tmax, '.txt',sep='')), row.names=F, col.names=F, sep='\t')
     delta.loop <- as.numeric(Q.old - Q.new)
     
     # Update for next loop
     Q.old <- Q.new # new baseline
-    
   }
   
   write.table(sqrt(diag(bread)), file=file.path(write_dir, paste('se_t', tmax, '.txt',sep='')), row.names=F, col.names=F, sep='\t')
   
-  cat("\n GEE estimation complete \n")
+  if(verbose){
+    cat("\n GEE estimation complete \n")
+  }
+  
   output <- list(beta.gls, e.test, bread, invParams=invParams$p, count.in, delta.loop)
   names(output) <- c('beta','resid','bread','W', 'n', 'tol')
   return(output)
 }
-
 
 
 
@@ -930,7 +1090,7 @@ meat.U <- function(node.list,X.1,e.1)
 
 # Calculate DC meat in a cleaner manner with less memory overhead
 #  use rowrange to parallelize if desired
-meatDC2 <- function(nodes,X,e,rowrange=1:nrow(X))
+meatDC2 <- function(nodes,X,e,rowrange=1:nrow(X),verbose=FALSE)
 {
   if(nrow(nodes) != nrow(X)){stop("Columns in nodes must match columns in x")}
   if(ncol(nodes) < 2){stop("Nodes must be # dyads x at least 2 cols")}
@@ -940,14 +1100,17 @@ meatDC2 <- function(nodes,X,e,rowrange=1:nrow(X))
   Xe <- sweep(X, 1, e, "*")
   meat <- matrix(0,p,p)  # initialize
   
-  cat("%-age done with DC meat: \n")
+  if(verbose){
+    cat("%-age done with DC meat: \n")
+  }
+  
   # may want dimensionality flag here, not sure, i.e. loop rather than lapply
   for(d in rowrange){
     ij <- nodes[d,]  # dyads
     rows <- which(nodes[,1] %in% ij | nodes[,2] %in% ij)    # overlapping dyads with ij
     temp <- lapply(rows, function(x) tcrossprod(Xe[d,], Xe[x,]))
     meat <- meat + Reduce("+", temp)   # increment meat by ij^th "cluster"
-    if(d%%1000 == 0){
+    if(d%%1000 == 0 & verbose){
       cat(100*d/nrow(X), " ")
     }
   }
@@ -1530,4 +1693,257 @@ calculate_parameter_inverse <- function(n, tmax, params, type="EI")
     
 }
 
+
+
+# Predict trade results using OLS
+predict_ols <- function(tmax, readdir, data)
+{
+  # data <- read_trade_data(tmax+1, datadir)
+  Y <- data$Y
+  X <- data$X
+  n <- max(data$node.mat)
+  
+  beta <- c(as.matrix( read.table(file.path(readdir, "beta_ols.txt")) ))
+  beta <- matrix(beta, ncol=8)
+  beta1 <- rbind(beta, beta[nrow(beta),])  # roll betas forward 
+  Yhat <- X %*% c(beta1)
+  itest <- tail(1:length(Y), n*(n-1))
+  
+  # R2in <- 1 - sum((Yhat - Y)[-itest]^2) / sum((Y[-itest] - mean(Y[-itest]))^2)
+  # R2out <- 1 - sum((Yhat - Y)[itest]^2) / sum((Y[itest] - mean(Y[itest]))^2)
+  
+  # SSE <- mean((Y[-itest] - mean(Y[-itest]))^2)
+  # mse_in <- mean((Yhat - Y)[-itest]^2)
+  # R2in <- 1 - mse_in / SSE
+  mse_in <- mspe(Y[-itest], Yhat[-itest]) #mean((Yhat - Y)[-itest]^2)
+  R2in <- r2(Y[-itest], Yhat[-itest])
+  
+  # SSE <- mean((Y[itest] - mean(Y[itest]))^2)
+  # mse_out <- mean((Yhat - Y)[itest]^2)
+  # R2out <- 1 - mse_out / SSE
+  mse_out <- mspe(Y[itest], Yhat[itest]) #mean((Yhat - Y)[-itest]^2)
+  R2out <- r2(Y[itest], Yhat[itest])
+  
+  
+  return(list(tout=tmax+1, Yhat=Yhat[itest], R2in=R2in, R2out = R2out, MSEin=mse_in, MSEout=mse_out))
+}
+
+# Predict trade results for exchangeable approach
+predict_gee <- function(tmax, readdir, data)
+{
+  # data <- read_trade_data(tmax+1, datadir)
+  Y <- data$Y
+  X <- data$X
+  n <- max(data$node.mat)
+  S <- Sigma.ind(n, directed=TRUE, FALSE)
+  d <- n*(n-1)
+  
+  beta <- c(as.matrix( read.table(file.path(readdir, paste0("beta_gee_t", tmax, ".txt")) )))
+  beta <- matrix(beta, ncol=8)
+  beta1 <- rbind(beta, beta[nrow(beta),])  # roll betas forward 
+  xb <- X %*% c(beta1)
+  Yhat <- xb
+  
+  itest <- tail(1:length(Y), n*(n-1))
+  phi <- c(as.matrix( read.table(file.path(readdir, paste0("params_gee_t", tmax, ".txt")) )))  # gee covariance matrix parameters
+  p <- calculate_parameter_inverse(n, tmax, phi, "EE")  # calculate inverse parameters of Var(Y)^{-1}
+  A <- Reduce("+", lapply(1:6, function(x) p$p[x]*S[[x]]))   # inverse paramter matrices
+  B <- Reduce("+", lapply(1:6, function(x) p$p[6 + x]*S[[x]]))
+  C <- Reduce("+", lapply(1:6, function(x) phi[6 + x]*S[[x]]))
+  CA <- C %*% A
+  CB <- C %*% B
+  
+  e <-  (Y[-itest] - xb[-itest])   #residuals
+  
+  
+  # dmu <- Reduce("+", lapply(1:tmax, function(x) CA %*% e[1:d + (x-1)*d]
+  # + CB %*% Reduce("+", lapply((1:tmax)[-x], function(t) e[1:d + (t-1)*d])) ) )
+  
+  D <- CA + (tmax - 1)*CB
+  e2 <- apply(matrix(e, ncol=tmax), 1, sum)
+  dmu <- dmu2 <- D %*% e2
+  
+  
+  Yhat[itest] <- xb[itest] + c(as.matrix( dmu ))
+  
+  # SSE <- mean((Y[-itest] - mean(Y[-itest]))^2)
+  # mse_in <- mean((Yhat - Y)[-itest]^2)
+  # R2in <- 1 - mse_in / SSE
+  mse_in <- mspe(Y[-itest], Yhat[-itest]) #mean((Yhat - Y)[-itest]^2)
+  R2in <- r2(Y[-itest], Yhat[-itest])
+  
+  # SSE <- mean((Y[itest] - mean(Y[itest]))^2)
+  # mse_out <- mean((Yhat - Y)[itest]^2)
+  # R2out <- 1 - mse_out / SSE
+  mse_out <- mspe(Y[itest], Yhat[itest]) #mean((Yhat - Y)[-itest]^2)
+  R2out <- r2(Y[itest], Yhat[itest])
+  
+  return(list(tout=tmax+1, Yhat=Yhat[itest], R2in=R2in, R2out = R2out, MSEin=mse_in, MSEout=mse_out))
+}
+
+# Predict trade results for Bayesian MCMC mixed effects model
+predict_bayesian <- function(tmax, readdir, data, 
+                             subset=TRUE, verbose=FALSE)
+{
+  require(mvtnorm)
+  
+  # data <- read_trade_data(tmax+1, datadir)
+  Y <- data$Y
+  X <- data$X
+  n <- max(data$node.mat)
+  itest <- tail(1:length(Y), n*(n-1))
+  jtest <- seq(tmax+1, 8*(tmax+1), by = tmax+1)
+  # 
+  # S22 <- Sigma.ind(n, TRUE, FALSE)
+  # S12 <- Sigma.ind(n, TRUE, TRUE)
+  # 
+  reorder <- c(t(matrix(1:(8*(tmax )), 8, tmax )))   # reorder columns of Beta to match my X
+  
+  Beta <- as.matrix( read.table(file.path(readdir, "Beta.txt")) )[, reorder]
+  SR <- as.matrix( read.table(file.path(readdir, "SR.txt")) )
+  GammaSR <- as.matrix( read.table(file.path(readdir, "GammaSR.txt")) )
+  PhiSR <- as.matrix( read.table(file.path(readdir, "PhiSR.txt")) )
+  PhiGG <- as.matrix( read.table(file.path(readdir, "PhiGG.txt")) )
+  GammaGG <- as.matrix( read.table(file.path(readdir, "GammaGG.txt")) )
+  
+  ii <- nrow(Beta)
+  if(subset){
+    ii <- min(sum(Beta[,1] != 0),
+              sum(SR[,1] != 0),
+              sum(GammaSR[,1] != 0),
+              sum(PhiSR[,1] != 0),
+              sum(PhiGG[,1] != 0),
+              sum(GammaGG[,1] != 0)
+    )
+    Beta <- Beta[1:ii,]
+    SR <- SR[1:ii,]
+    GammaSR <- GammaSR[1:ii,]
+    PhiSR <- PhiSR[1:ii,]
+    PhiGG <- PhiGG[1:ii,]
+    GammaGG <- GammaGG[1:ii,]
+  } 
+  
+  
+  Beta1 <- Beta[, seq(tmax, 8*(tmax), by = tmax)]   # last set of betas are new set
+  # SR1 <- SR[, tail(1:ncol(SR), n*2)]    # SR's from final time period (True??)
+  X1 <- X[, jtest]
+  # SR1 <- cbind(SR, SR[, tail(1:ncol(SR), n*2)])
+  Yhat <- array(0, c(n,n,nrow(Beta)))
+  Yold <- mat.net(Y[itest - n*(n-1)], directed=TRUE)
+  # Yold <- Y[itest - n*(n-1)]
+  
+  EY <- X[, -jtest] %*% apply(Beta, 2, mean)
+  # SSE <- mean((Y[-itest] - mean(Y[-itest]))^2)
+  # mse_in <- mean((EY - Y)[-itest]^2)
+  # R2in <- 1 - mse_in / SSE
+  mse_in <- mspe(Y[-itest], EY[-itest]) #mean((Yhat - Y)[-itest]^2)
+  R2in <- r2(Y[-itest], EY[-itest])
+  
+  
+  
+  for(i in 1:ii){
+    
+    eta <- X1[itest, ] %*% Beta1[i,]
+    sr_temp <- matrix(SR[i,], ncol=2, byrow=TRUE)[seq(tmax, n*tmax, by=tmax),]
+    gamma_sr_temp <- matrix(GammaSR[i,], 2, 2)
+    phi_sr_temp <- matrix(PhiSR[i,], 2, 2)
+    phi_gg_temp <- matrix(c(PhiGG[i,], rev(PhiGG[i,])), 2, 2)
+    gamma_gg_temp <- matrix(GammaGG[i,], 2, 2)
+    
+    # A <- diag(prod(dim(phi_sr_temp))) - kronecker(phi_sr_temp, phi_sr_temp)
+    # SigmaU <- matrix( solve(A, c(gamma_sr_temp)), 2, 2 )
+    #  
+    # B <- diag(prod(dim(phi_gg_temp))) - kronecker(phi_gg_temp, phi_gg_temp)
+    # SigmaV <- matrix( solve(B, c(gamma_gg_temp)), 2, 2)
+    # 
+    # phi <- c(sum(diag(SigmaU)) + SigmaV[1,1], 2*SigmaU[1,2] + SigmaV[1,2], SigmaU[1,1], SigmaU[2,2], SigmaU[1,2], 0)
+    # p <- invert_exchangeable_matrix(n, phi, TRUE)
+    # E22 <- Reduce("+", lapply(1:5, function(z) p[z]*S22[[z]]))
+    # 
+    # 
+    # CU <- phi_sr_temp %*% SigmaU
+    # CV <- phi_gg_temp %*% SigmaV
+    # delta <- c(sum(diag(CU)) + CV[1,1], CU[1,2] + CU[2,1] + CV[1,2], CU[1,1], CU[2,2], CU[1,2], CU[2,1], 0)
+    # E12 <- Reduce("+", lapply(1:6, function(z) delta[z]*S12[[z]]))
+    # 
+    # e <- Yold - eta
+    # dmu <- c(as.matrix( E12 %*% E22 %*% e ))
+    # Yhat[i,] <- c(eta) + dmu
+    
+    # Previously sampled values
+    eta_mat <-  mat.net(eta, directed=TRUE)
+    stemp <- sr_temp[,1]
+    rtemp <- sr_temp[,2]
+    S <- outer(stemp, rep(1, n), "*")
+    R <- outer(rep(1, n), rtemp, "*")
+    G <- Yold - S - R - eta_mat
+    
+    esr <- rmvnorm(n, c(0,0), gamma_sr_temp)
+    srnew <- cbind(stemp, rtemp) %*% t(phi_sr_temp)  + esr
+    Yhat[,,i] <- eta_mat +  outer(srnew[,1], rep(1,n), "*") + outer(rep(1, n), srnew[,2], "*")  # XB, S, and R
+    
+    # egg <- rmvnorm(n*(n-1)/2, c(0,0), gamma_gg_temp)
+    g_old <- cbind(vec.net(G, FALSE), vec.net(t(G), FALSE))
+    gnew <- g_old %*% t(phi_gg_temp) # + egg
+    Gnew <- 0*eta_mat
+    
+    G1 <- mat.net(gnew[,1], directed=FALSE)
+    G2 <- mat.net(gnew[,2], directed=FALSE)
+    Gnew[lower.tri(Gnew)] <- G1[lower.tri(Gnew)]
+    Gnew[upper.tri(Gnew)] <- G2[upper.tri(Gnew)]
+    
+    Yhat[,,i] <- Yhat[,,i] + Gnew  # G
+    # count <- 0
+    # for(i1 in 1:n){
+    #   for(i2 in 1:n){
+    #      
+    #     if(i1 < i2){  # pairwise (GG) updates
+    #       count <- count + 1 
+    #     }
+    #   }
+    # }
+    # Yhat[,,i]
+    
+    
+    
+    if(i %% 100 == 0 & as.logical(verbose)){
+      cat(i, "\n")
+    }
+    
+  }
+  
+  
+  EY <- vec.net(apply(Yhat, 1:2, mean, na.rm=TRUE), TRUE)
+  
+  # SSE <- mean((Y[itest] - mean(Y[itest]))^2)
+  # mse_out <- mean((EY - Y)[itest]^2)
+  # R2out <- 1 - mse_out / SSE
+  mse_out <- mspe(Y[itest], EY) #mean((Yhat - Y)[-itest]^2)
+  R2out <- r2(Y[itest], EY)
+  
+  return(list(tout=tmax+1, Yhat=Yhat, R2out = R2out, MSEout=mse_out, R2in=R2in, MSEin=mse_in))
+}
+
+# calculate R^2
+r2 <- function(y, yhat, remove.zeros=FALSE)
+{
+  if(remove.zeros){
+    y[y==0] <- NA
+  }
+  
+  sse <- sum((y - mean(y, na.rm=TRUE))^2, na.rm=TRUE)
+  ssr <- sum((y - yhat)^2, na.rm=TRUE)
+  1-ssr/sse
+}
+
+# mean square prediction error
+mspe <- function(y, yhat, remove.zeros=FALSE)
+{
+  if(remove.zeros){
+    y[y==0] <- NA
+  }
+  
+  mean((y - yhat)^2, na.rm=TRUE)
+  # 1-ssr/sse
+}
 
